@@ -138,7 +138,7 @@ st.markdown(
     """
     <div style="text-align:center;padding:4px 0 10px 0;">
         <div style="font-size:20px;font-weight:700;color:#22c55e;direction:rtl;">
-            سامانه هوشمند قیمت‌گذاری، رصد رقبا و مدیریت مارکت‌پلیس‌ها
+            Pazaryeri Entegrasyonu, Akıllı Fiyatlandırma ve Rakip Analiz Otomasyonu
         </div>
         <h1 style="margin:6px 0 2px 0;color:#f8fafc;">TrendScout AI — Pazaryeri &amp; E-Ticaret Otomasyonu</h1>
         <div style="color:#94a3b8;">Veri Odaklı Akıllı Fiyatlandırma = Maksimum Satış ve Kâr</div>
