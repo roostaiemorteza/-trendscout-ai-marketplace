@@ -1,0 +1,17 @@
+﻿product_id,title,category,buying_cost,current_price,competitor_min_price,suggested_price,buybox_owner,stock_quantity,sales_velocity_daily,runway_days,return_rate,kdv_rate,commission_rate,platform
+TRT-1001,Kahve Makinesi,Elektronik Ev,1450,2299,2199,2249,Rakip A,24,18,1.3,2.5,20,15,Trendyol
+TRT-1002,Kablosuz Kulaklık,Elektronik,380,649,629,639,Biz,120,42,2.8,1.8,20,15,Trendyol
+TRT-1003,Robot Süpürge,Ev Aletleri,3900,6499,6299,6399,Rakip B,8,6,1.5,3.2,20,15,Hepsiburada
+TRT-1004,Akıllı Saat,Giyilebilir Teknoloji,890,1499,1450,1479,Biz,65,28,3.1,2.0,20,15,Trendyol
+TRT-1005,Döküm Tava 26cm,Mutfak Gereçleri,210,399,379,389,Biz,210,35,2.4,1.5,20,12,Hepsiburada
+TRT-1006,Bluetooth Hoparlör,Elektronik,260,449,429,439,Rakip A,90,22,4.1,2.2,20,15,Amazon TR
+TRT-1007,Elektrikli Diş Fırçası,Kişisel Bakım,320,579,559,569,Biz,45,19,3.6,2.8,20,15,Trendyol
+TRT-1008,Airfryer 5.5L,Ev Aletleri,1750,2899,2799,2849,Rakip C,12,9,1.1,3.5,20,15,Hepsiburada
+TRT-1009,Bilgisayar Mouse,Bilgisayar,95,189,179,184,Biz,340,55,1.9,1.2,20,12,Amazon TR
+TRT-1010,Mekanik Klavye,Bilgisayar,420,749,729,739,Biz,58,26,3.4,1.9,20,12,Amazon TR
+TRT-1011,Yoga Matı,Spor & Outdoor,130,249,239,244,Rakip A,150,31,2.6,1.4,20,12,Trendyol
+TRT-1012,Termos 1L,Mutfak Gereçleri,85,159,149,154,Biz,420,60,2.2,1.0,20,12,Trendyol
+TRT-1013,Dumbbell Set 10kg,Spor & Outdoor,480,849,829,839,Biz,30,14,9.5,2.9,20,12,Hepsiburada
+TRT-1014,Nemlendirici Cihaz,Ev Aletleri,390,699,679,689,Rakip B,40,17,2.5,2.6,20,15,Amazon TR
+TRT-1015,Masa Lambası LED,Aydınlatma,110,219,209,214,Biz,180,38,1.7,1.6,20,12,Trendyol
+TRT-1016,Su Arıtma Filtresi,Ev Aletleri,230,429,415,419,Rakip A,70,20,2.0,3.0,20,15,Amazon TR
