@@ -1,8 +1,6 @@
-
 """
 TrendScout AI — Pazaryeri & E-Ticaret Otomasyonu
-سامانه هوشمند قیمت‌گذاری، رصد رقبا و مدیریت مارکت‌پلیس‌ها
-اجرا:  streamlit run app.py
+Akıllı fiyatlandırma sistemi, rakip izleme ve piyasa polisi yönetimi:  streamlit run app.py
 """
 import os
 import pandas as pd
@@ -35,6 +33,105 @@ LOGO = os.path.join(ASSETS, "logo.svg")
 CARD = "background:#1e293b;border:1px solid #334155;border-radius:14px;padding:14px 18px;"
 GREEN = "#22c55e"
 
+# ==================================================================
+# ROBUST COLUMN HANDLING
+# ------------------------------------------------------------------
+# Canonical column names app.py expects, mapped from possible aliases
+# found in different versions of sample_data.csv. Any canonical column
+# that is still missing after aliasing is created with a safe default
+# so the app never raises a KeyError (fix for line-112 style crash).
+COLUMN_ALIASES = {
+    "product_id": ["product_id", "id", "sku", "urun_id", "کد_محصول"],
+    "title": ["title", "name", "product_name", "urun_adi", "عنوان"],
+    "category": ["category", "kategori", "دسته"],
+    "buying_cost": ["buying_cost", "cost", "maliyet", "alis_fiyati",
+                    "purchase_price", "هزینه_خرید"],
+    "current_price": ["current_price", "price", "fiyat", "list_price",
+                      "قیمت_فعلی"],
+    "competitor_min_price": ["competitor_min_price", "competitor_price",
+                             "min_competitor_price", "rakip_fiyat",
+                             "lowest_competitor_price"],
+    "suggested_price": ["suggested_price", "recommended_price", "onerilen_fiyat"],
+    "buybox_owner": ["buybox_owner", "buy_box_owner", "buybox", "owner",
+                     "sahibi", "buybox_sahibi"],
+    "stock_quantity": ["stock_quantity", "stock", "qty", "stok", "inventory",
+                       "موجودی"],
+    "sales_velocity_daily": ["sales_velocity_daily", "daily_sales",
+                             "sales_velocity", "gunluk_satis", "sales_per_day"],
+    "return_rate": ["return_rate", "iade_orani", "refund_rate"],
+    "kdv_rate": ["kdv_rate", "vat_rate", "tax_rate", "vergi_orani"],
+    "commission_rate": ["commission_rate", "komisyon_orani", "fee_rate"],
+    "platform": ["platform", "channel", "marketplace", "kanal"],
+}
+
+COLUMN_DEFAULTS = {
+    "product_id": lambda i: f"TRT-{1000 + i}",
+    "title": lambda i: f"Ürün {1000 + i}",
+    "category": lambda i: "Genel",
+    "buying_cost": lambda i: 0.0,
+    "current_price": lambda i: np.nan,
+    "competitor_min_price": lambda i: np.nan,
+    "suggested_price": lambda i: np.nan,
+    "buybox_owner": lambda i: "Rakip",
+    "stock_quantity": lambda i: 0,
+    "sales_velocity_daily": lambda i: 1,
+    "return_rate": lambda i: 0.0,
+    "kdv_rate": lambda i: 20,
+    "commission_rate": lambda i: 15,
+    "platform": lambda i: "Trendyol",
+}
+
+
+def _norm(s):
+    return str(s).strip().lower().replace(" ", "_")
+
+
+def ensure_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Rename aliased columns to canonical names and fill any missing
+    canonical column with a sensible default. Never raises KeyError."""
+    df = df.copy()
+    df.columns = [_norm(c) for c in df.columns]
+
+    renamed = {}
+    for canon, aliases in COLUMN_ALIASES.items():
+        if canon in df.columns:
+            continue
+        for alias in aliases:
+            if alias in df.columns:
+                renamed[alias] = canon
+                break
+    if renamed:
+        df = df.rename(columns=renamed)
+
+    for canon, default_fn in COLUMN_DEFAULTS.items():
+        if canon not in df.columns:
+            df[canon] = [default_fn(i) for i in range(len(df))]
+
+    # Numeric coercion + imputation so math never breaks
+    num_cols = ["buying_cost", "current_price", "competitor_min_price",
+                "suggested_price", "stock_quantity", "sales_velocity_daily",
+                "return_rate", "kdv_rate", "commission_rate"]
+    for c in num_cols:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    for c in ["current_price", "competitor_min_price", "suggested_price"]:
+        fill = df[c].fillna(df["buying_cost"] * 1.3).clip(lower=1.0)
+        df[c] = df[c].fillna(fill).clip(lower=1.0)
+    df["buying_cost"] = df["buying_cost"].fillna(0.0)
+    df["stock_quantity"] = df["stock_quantity"].fillna(0).astype(int)
+    df["sales_velocity_daily"] = (
+        df["sales_velocity_daily"].fillna(1).clip(lower=0.1).astype(float))
+    df["kdv_rate"] = df["kdv_rate"].fillna(20)
+    df["buybox_owner"] = df["buybox_owner"].astype(str)
+
+    # Derived margin, guard against divide-by-zero
+    df["margin_pct"] = np.where(
+        df["suggested_price"] > 0,
+        (df["suggested_price"] - df["buying_cost"]) / df["suggested_price"] * 100,
+        0.0,
+    ).round(1)
+    return df
+
+
 # ---------------------------- Header ------------------------------
 st.markdown(
     """
@@ -50,23 +147,29 @@ st.markdown(
 )
 
 # ---------------------------- Data --------------------------------
-df = load_market_data()
+try:
+    df = ensure_columns(load_market_data())
+except Exception as e:
+    st.error(f"Veri yüklenemedi: {e}")
+    st.stop()
 stats = compute_price_stats(df)
 
 # ---------------------------- Metrics -----------------------------
+kritik = df[df["stock_quantity"] <= 20]
+buybox_biz = (df["buybox_owner"].str.lower() == "biz").sum()
+
 c1, c2, c3, c4 = st.columns(4)
 c1.markdown(f'<div style="{CARD}"><div style="color:#94a3b8;font-size:13px;">TOPLAM ÜRÜN</div>'
-            f'<div style="font-size:30px;font-weight:800;color:#22c55e;">1,248</div></div>',
+            f'<div style="font-size:30px;font-weight:800;color:#22c55e;">{len(df):,}</div></div>',
             unsafe_allow_html=True)
 c2.markdown(f'<div style="{CARD}"><div style="color:#94a3b8;font-size:13px;">AKTİF BUYBOX</div>'
-            f'<div style="font-size:30px;font-weight:800;color:#22c55e;">%84 '
-            f'<span style="font-size:14px;color:#4ade80;">+5.84%</span></div></div>',
+            f'<div style="font-size:30px;font-weight:800;color:#22c55e;">'
+            f'%{stats["buybox_rate"]:.1f}</div></div>',
             unsafe_allow_html=True)
 c3.markdown(f'<div style="{CARD}"><div style="color:#94a3b8;font-size:13px;">ORTALAMA KAR</div>'
-            f'<div style="font-size:30px;font-weight:800;color:#22c55e;">%22 '
-            f'<span style="font-size:14px;color:#4ade80;">▲</span></div></div>',
+            f'<div style="font-size:30px;font-weight:800;color:#22c55e;">'
+            f'%{stats["mean_margin"]}</div></div>',
             unsafe_allow_html=True)
-kritik = df[df["stock_quantity"] <= 20]
 c4.markdown(f'<div style="{CARD}"><div style="color:#94a3b8;font-size:13px;">KRİTİK STOK UYARISI</div>'
             f'<div style="font-size:30px;font-weight:800;color:#f87171;">{len(kritik)} Ürün</div></div>',
             unsafe_allow_html=True)
@@ -106,24 +209,26 @@ with tab1:
 
         st.subheader("🤖 Akıllı Fiyatlandırma ve Rakip Eşleştirme")
         table = df.head(8).copy()
-        table["Aksiyon"] = np.where(table["buybox_owner"] == "Biz", "✅ Koru",
-                                    "🔄 Repricing")
+        table["Aksiyon"] = np.where(
+            table["buybox_owner"].str.lower() == "biz", "✅ Koru", "🔄 Repricing")
         st.dataframe(
             table.rename(columns={
-                "title": "Ürün", "suggested_price": "Birim Fiyat (TL)",
+                "product_id": "Kod", "title": "Ürün",
+                "suggested_price": "Birim Fiyat (TL)",
                 "competitor_min_price": "Rakip Fiyat (TL)",
                 "buybox_owner": "BuyBox Sahibi",
-            })[["product_id", "Ürün", "Birim Fiyat (TL)", "Rakip Fiyat (TL)",
-                "suggested_price", "BuyBox Sahibi", "Aksiyon"]],
+            })[["Kod", "Ürün", "Birim Fiyat (TL)", "Rakip Fiyat (TL)",
+                "BuyBox Sahibi", "Aksiyon"]],
             use_container_width=True, hide_index=True,
         )
         st.warning(f"⚠️ **Kritik Durum:** {len(kritik)} üründe stok kritik seviyede, "
-                   f"{(df['buybox_owner'] != 'Biz').sum()} üründe BuyBox rakipte. "
+                   f"{len(df) - buybox_biz} üründe BuyBox rakipte. "
                    "Onay ile otomatik repricing başlatılabilir.")
 
     with right:
         st.subheader("🥧 Kanal Bazlı Satış")
-        kanal = df.groupby("platform")["sales_velocity_daily"].sum().reset_index()
+        kanal = (df.groupby("platform")["sales_velocity_daily"].sum()
+                 .reset_index())
         kanal.columns = ["Kanal", "Satış"]
         figd = px.pie(kanal, names="Kanal", values="Satış", hole=0.55,
                       color_discrete_sequence=["#3b82f6", "#f97316", "#14b8a6"])
@@ -161,9 +266,11 @@ with tab1:
 # ============== TAB 2 — AKILLI FİYATLANDIRMA ======================
 with tab2:
     st.subheader("💰 Akıllı Fiyatlandırma (Repricer) & BuyBox Stratejileri")
-    pid = st.selectbox("Ürün seçin", df["product_id"] + " — " + df["title"])
-    sel_id = pid.split(" — ")[0]
-    row = df[df["product_id"] == sel_id].iloc[0]
+    labels = df["product_id"].astype(str) + " — " + df["title"].astype(str)
+    pid = st.selectbox("Ürün seçin", labels)
+    sel_id = str(pid).split(" — ")[0]
+    match = df[df["product_id"].astype(str) == sel_id]
+    row = match.iloc[0] if len(match) else df.iloc[0]
     s1, s2, s3 = st.columns(3)
     strategy = s1.selectbox("Strateji", ["dengeli", "agresif", "kar_maks"])
     min_margin = s2.number_input("Min. marj (%)", 5.0, 60.0, 15.0, 1.0)
@@ -179,7 +286,8 @@ with tab2:
 with tab3:
     st.subheader("📦 Stok & Erken Uyarı (Predictive Stockout)")
     view = df.copy()
-    view["runway_days"] = (view["stock_quantity"] / view["sales_velocity_daily"]).round(1)
+    view["runway_days"] = (view["stock_quantity"] /
+                           view["sales_velocity_daily"].clip(lower=0.1)).round(1)
     def durum(d):
         return "🔴 Kritik" if d <= 3 else ("🟠 Uyarı" if d <= 10 else "🟢 Güvenli")
     view["Durum"] = view["runway_days"].apply(durum)
@@ -201,10 +309,10 @@ with tab4:
     f1, f2, f3, f4 = st.columns(4)
     sp = f1.number_input("Satış fiyatı (TL)", 1.0, 1e6, float(row["suggested_price"]), 10.0)
     bc = f2.number_input("Alış maliyeti (TL)", 0.0, 1e6, float(row["buying_cost"]), 10.0)
-    cat = f3.selectbox("Platform / Komisyon", list(
-        {"Trendyol": 0.15, "Hepsiburada": 0.14, "Amazon TR": 0.15}.keys()))
+    cat = f3.selectbox("Platform / Komisyon",
+                       ["Trendyol", "Hepsiburada", "Amazon TR"])
     barem = f4.selectbox("Kargo barem", list(SHIPPING_BAREM.keys()))
-    kdv = st.slider("KDV oranı (%)", 0, 27, int(row["kdv_rate"]))
+    kdv = st.slider("KDV oranı (%)", 0, 27, int(float(row["kdv_rate"])))
     np_ = calculate_net_profit(sp, bc, cat, barem, kdv)
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Komisyon", f"{np_['commission']:,.0f} TL", f"%{np_['commission_rate_pct']}")
