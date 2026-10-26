@@ -1,6 +1,7 @@
 """
 TrendScout AI — Pazaryeri & E-Ticaret Otomasyonu
-Akıllı fiyatlandırma sistemi, rakip izleme ve piyasa polisi yönetimi:  streamlit run app.py
+سامانه هوشمند قیمت‌گذاری، رصد رقبا و مدیریت مارکت‌پلیس‌ها
+اجرا:  streamlit run app.py
 """
 import os
 import pandas as pd
